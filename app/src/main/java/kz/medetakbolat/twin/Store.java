@@ -148,4 +148,7 @@ public final class Store {
     public static boolean backgroundVideo(Context c){return p(c).getBoolean("background_video",false);}
     public static void setLibraryGrid(Context c,boolean b){p(c).edit().putBoolean("library_grid",b).apply();}
     public static boolean libraryGrid(Context c){return p(c).getBoolean("library_grid",true);}
+
+    public static void setRepeatMode(Context c,int mode){p(c).edit().putInt("repeat_mode",mode).apply();}
+    public static int repeatMode(Context c){return p(c).getInt("repeat_mode",0);}
 }

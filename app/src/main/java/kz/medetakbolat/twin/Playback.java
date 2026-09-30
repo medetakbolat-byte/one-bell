@@ -53,7 +53,7 @@ public final class Playback {
         if(uris==null||uris.isEmpty()||startUri==null)return;
         ArrayList<String> safe=new ArrayList<>(uris);int idx=safe.indexOf(startUri);if(idx<0){safe.add(0,startUri);idx=0;}
         final int start=idx;final long pos=Store.progress(c,startUri)[0];
-        withController(c,mc->{mc.setMediaItems(items(c,safe,start),start,pos);mc.prepare();mc.play();});
+        withController(c,mc->{mc.setMediaItems(items(c,safe,start),start,pos);mc.setRepeatMode(Store.repeatMode(c));mc.prepare();mc.play();});
     }
 
     public static void syncActiveQueue(Context c){
@@ -65,6 +65,7 @@ public final class Playback {
             if(uris.isEmpty()){mc.clearMediaItems();return;}
             int idx=uris.indexOf(now);if(idx<0)idx=0;
             mc.setMediaItems(items(c,uris,idx),idx,idx<uris.size()&&uris.get(idx).equals(now)?pos:0);
+            mc.setRepeatMode(Store.repeatMode(c));
             mc.prepare();if(wasPlaying)mc.play();
         });
     }

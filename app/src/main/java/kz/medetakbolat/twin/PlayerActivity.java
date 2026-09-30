@@ -172,7 +172,7 @@ public class PlayerActivity extends AppCompatActivity {
         MediaEntry e=MediaRepository.resolve(this,currentUri);if(e==null)return;
         title.setText(e.title);boolean video=e.isVideo();artwork.setVisibility(video?View.GONE:View.VISIBLE);fit.setVisibility(video?View.VISIBLE:View.GONE);
         if(!video)Thumb.load(this,artwork,e);
-        float sp=Store.speed(this,currentUri);controller.setPlaybackSpeed(sp);speed.setText(speedText(sp)+"×");
+        float sp=Store.speed(this,currentUri);controller.setPlaybackSpeed(sp);speed.setText(speedText(sp)+"×");updateRepeatUi();
         resetTransform();mediaLayer.setTranslationX(0);mediaLayer.setAlpha(1f);
         if(video){configurePip();scheduleHide();}else showControls();
     }

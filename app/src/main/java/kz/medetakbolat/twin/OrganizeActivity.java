@@ -17,6 +17,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.Player;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -77,7 +78,13 @@ public class OrganizeActivity extends AppCompatActivity {
         LinearLayout head=Ui.row(this);head.setPadding(Ui.dp(this,16),Ui.dp(this,2),Ui.dp(this,16),Ui.dp(this,10));ImageView iv=cover(p.cover,80);iv.setOnClickListener(v->pickCover("playlist"));head.addView(iv,new LinearLayout.LayoutParams(Ui.dp(this,86),Ui.dp(this,86)));
         LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(Ui.dp(this,14),0,0,0);info.addView(Ui.text(this,p.name,20,Ui.TEXT,true));info.addView(Ui.text(this,p.items.size()+" items",12,Ui.MUTED,false));head.addView(info,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1));root.addView(head);
 
-        LinearLayout actions=Ui.row(this);actions.setPadding(Ui.dp(this,16),0,Ui.dp(this,16),Ui.dp(this,8));TextView play=Ui.pill(this,"▶ Play all");TextView sh=Ui.pill(this,"Shuffle");play.setOnClickListener(v->playPlaylist(false));sh.setOnClickListener(v->playPlaylist(true));actions.addView(play);actions.addView(sh);((LinearLayout.LayoutParams)sh.getLayoutParams()).setMargins(Ui.dp(this,8),0,0,0);root.addView(actions);
+        LinearLayout actions=Ui.row(this);actions.setPadding(Ui.dp(this,16),0,Ui.dp(this,16),Ui.dp(this,8));
+        TextView play=Ui.pill(this,"▶ Play");TextView sh=Ui.pill(this,"Shuffle");TextView loop=Ui.pill(this,"↻ Loop");
+        play.setOnClickListener(v->playPlaylist(false,false));sh.setOnClickListener(v->playPlaylist(true,false));loop.setOnClickListener(v->playPlaylist(false,true));
+        actions.addView(play,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
+        actions.addView(sh,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
+        actions.addView(loop,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
+        ((LinearLayout.LayoutParams)sh.getLayoutParams()).setMargins(Ui.dp(this,6),0,Ui.dp(this,6),0);root.addView(actions);
 
         recycler=new RecyclerView(this);recycler.setLayoutManager(new LinearLayoutManager(this));ItemAdapter a=new ItemAdapter(p.items,false);recycler.setAdapter(a);root.addView(recycler,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1));attachItemDrag(a,false);
 
@@ -87,7 +94,13 @@ public class OrganizeActivity extends AppCompatActivity {
     private void renderQueue(){
         Store.QueueDef q=findQueue();if(q==null){finish();return;}
         LinearLayout status=Ui.row(this);status.setPadding(Ui.dp(this,16),Ui.dp(this,4),Ui.dp(this,16),Ui.dp(this,10));TextView s=Ui.text(this,q.id.equals(Store.currentQueueId(this))?"● Active queue":q.items.size()+" items",14,q.id.equals(Store.currentQueueId(this))?Ui.ACCENT:Ui.MUTED,true);status.addView(s,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));if(!q.id.equals(Store.currentQueueId(this))){TextView a=Ui.pill(this,"Make active");a.setOnClickListener(v->{Store.setCurrentQueue(this,q.id);Playback.syncActiveQueue(this);render();});status.addView(a);}root.addView(status);
-        if(!q.items.isEmpty()){TextView p=Ui.text(this,"▶  Play queue",15,Ui.ACCENT,true);p.setGravity(Gravity.CENTER);p.setPadding(0,Ui.dp(this,8),0,Ui.dp(this,8));p.setOnClickListener(v->playQueue());root.addView(p,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,Ui.dp(this,50)));}
+        if(!q.items.isEmpty()){
+            LinearLayout qActions=Ui.row(this);qActions.setPadding(Ui.dp(this,16),0,Ui.dp(this,16),Ui.dp(this,8));
+            TextView p=Ui.pill(this,"▶ Play");TextView loop=Ui.pill(this,"↻ Loop");
+            p.setOnClickListener(v->playQueue(false));loop.setOnClickListener(v->playQueue(true));
+            qActions.addView(p,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));qActions.addView(loop,new LinearLayout.LayoutParams(0,Ui.dp(this,42),1));
+            ((LinearLayout.LayoutParams)loop.getLayoutParams()).setMargins(Ui.dp(this,8),0,0,0);root.addView(qActions);
+        }
 
         ArrayList<Store.Item>w=new ArrayList<>();for(String u:q.items)w.add(new Store.Item(u));recycler=new RecyclerView(this);recycler.setLayoutManager(new LinearLayoutManager(this));ItemAdapter a=new ItemAdapter(w,true);recycler.setAdapter(a);root.addView(recycler,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1));attachItemDrag(a,true);
         TextView add=Ui.text(this,"＋  Add media",15,Ui.ACCENT,true);add.setGravity(Gravity.CENTER);add.setPadding(0,Ui.dp(this,12),0,Ui.dp(this,14));add.setOnClickListener(v->addMedia());root.addView(add,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,Ui.dp(this,56)));
@@ -112,8 +125,17 @@ public class OrganizeActivity extends AppCompatActivity {
     private void saveItems(ArrayList<Store.Item>items){ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist p:c.playlists)if(p.id.equals(playlistId)){p.items.clear();p.items.addAll(items);}Store.saveCollections(this,cs);}
     private void saveQueue(ArrayList<Store.Item>items){ArrayList<String>u=new ArrayList<>();for(Store.Item i:items)u.add(i.uri);Store.replaceQueue(this,queueId,u);if(queueId.equals(Store.currentQueueId(this)))Playback.syncActiveQueue(this);}
 
-    private void playPlaylist(boolean shuffle){Store.Playlist p=findPlaylist();if(p==null||p.items.isEmpty())return;ArrayList<String>u=new ArrayList<>();for(Store.Item i:p.items)u.add(i.uri);if(shuffle)Collections.shuffle(u);Store.setCurrentQueue(this,"current");Store.replaceQueue(this,"current",u);Playback.replaceAndPlay(this,u,u.get(0));startActivity(new Intent(this,PlayerActivity.class));}
-    private void playQueue(){Store.QueueDef q=findQueue();if(q==null||q.items.isEmpty())return;Store.setCurrentQueue(this,q.id);Playback.replaceAndPlay(this,q.items,q.items.get(0));startActivity(new Intent(this,PlayerActivity.class));}
+    private void playPlaylist(boolean shuffle,boolean loop){
+        Store.Playlist p=findPlaylist();if(p==null||p.items.isEmpty())return;
+        ArrayList<String>u=new ArrayList<>();for(Store.Item i:p.items)u.add(i.uri);if(shuffle)Collections.shuffle(u);
+        Store.setRepeatMode(this,loop?Player.REPEAT_MODE_ALL:Player.REPEAT_MODE_OFF);
+        Store.setCurrentQueue(this,"current");Store.replaceQueue(this,"current",u);Playback.replaceAndPlay(this,u,u.get(0));startActivity(new Intent(this,PlayerActivity.class));
+    }
+    private void playQueue(boolean loop){
+        Store.QueueDef q=findQueue();if(q==null||q.items.isEmpty())return;
+        Store.setRepeatMode(this,loop?Player.REPEAT_MODE_ALL:Player.REPEAT_MODE_OFF);
+        Store.setCurrentQueue(this,q.id);Playback.replaceAndPlay(this,q.items,q.items.get(0));startActivity(new Intent(this,PlayerActivity.class));
+    }
     private void playItem(Store.Item i,boolean queue){
         if(queue){Store.setCurrentQueue(this,queueId);Store.QueueDef q=findQueue();if(q!=null)Playback.replaceAndPlay(this,q.items,i.uri);}
         else{Store.Playlist p=findPlaylist();ArrayList<String>u=new ArrayList<>();for(Store.Item x:p.items)u.add(x.uri);Store.setCurrentQueue(this,"current");Store.replaceQueue(this,"current",u);Playback.replaceAndPlay(this,u,i.uri);}
