@@ -49,7 +49,7 @@ public class PlayerActivity extends AppCompatActivity {
     private PlayerView playerView;
     private ImageView artwork;
     private LinearLayout topBar,centerBar,bottomBar;
-    private TextView title,current,total,play,speed,feedback,fit;
+    private TextView title,current,total,play,speed,repeat,feedback,fit;
     private SeekBar seek;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private boolean draggingSeek=false,controlsVisible=true,inPip=false,sleepAtEnd=false;
@@ -115,9 +115,10 @@ public class PlayerActivity extends AppCompatActivity {
 
         LinearLayout tools=Ui.row(this);
         speed=Ui.text(this,"1.0×",13,Ui.TEXT,true);speed.setGravity(Gravity.CENTER);speed.setOnClickListener(v->{showControls();speedSheet();});
+        repeat=Ui.text(this,"↻",13,Ui.MUTED,true);repeat.setGravity(Gravity.CENTER);repeat.setOnClickListener(v->{showControls();cycleRepeat();});
         TextView book=Ui.text(this,"Bookmark",13,Ui.TEXT,true);book.setGravity(Gravity.CENTER);book.setOnClickListener(v->{showControls();bookmark();});
         TextView queue=Ui.text(this,"Queue",13,Ui.TEXT,true);queue.setGravity(Gravity.CENTER);queue.setOnClickListener(v->{showControls();queueSheet();});
-        tools.addView(speed,new LinearLayout.LayoutParams(0,Ui.dp(this,40),1));tools.addView(book,new LinearLayout.LayoutParams(0,Ui.dp(this,40),1));tools.addView(queue,new LinearLayout.LayoutParams(0,Ui.dp(this,40),1));bottomBar.addView(tools);
+        tools.addView(speed,new LinearLayout.LayoutParams(0,Ui.dp(this,40),1));tools.addView(repeat,new LinearLayout.LayoutParams(0,Ui.dp(this,40),1));tools.addView(book,new LinearLayout.LayoutParams(0,Ui.dp(this,40),1));tools.addView(queue,new LinearLayout.LayoutParams(0,Ui.dp(this,40),1));bottomBar.addView(tools);
         root.addView(bottomBar,new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,Ui.dp(this,98),Gravity.BOTTOM));
 
         feedback=Ui.text(this,"",15,Ui.TEXT,true);feedback.setGravity(Gravity.CENTER);feedback.setPadding(Ui.dp(this,14),Ui.dp(this,8),Ui.dp(this,14),Ui.dp(this,8));feedback.setBackground(Ui.round(android.graphics.Color.argb(155,0,0,0),18,this));feedback.setVisibility(View.GONE);
@@ -139,7 +140,7 @@ public class PlayerActivity extends AppCompatActivity {
         future=new MediaController.Builder(this,token).buildAsync();
         future.addListener(()->{
             try{
-                controller=future.get();playerView.setPlayer(controller);
+                controller=future.get();playerView.setPlayer(controller);controller.setRepeatMode(Store.repeatMode(this));updateRepeatUi();
                 controller.addListener(new Player.Listener(){
                     @Override public void onMediaItemTransition(MediaItem item,int reason){
                         if(sleepAtEnd&&reason==Player.MEDIA_ITEM_TRANSITION_REASON_AUTO){controller.pause();sleepAtEnd=false;}
@@ -265,6 +266,23 @@ public class PlayerActivity extends AppCompatActivity {
         playerView.setTranslationX(panX);playerView.setTranslationY(panY);
     }
     private void resetTransform(){videoScale=1f;panX=panY=0;applyTransform();fit.setText(playerView.getResizeMode()==AspectRatioFrameLayout.RESIZE_MODE_FIT?"Fit":"Fill");}
+
+    private void cycleRepeat(){
+        if(controller==null)return;
+        int mode=controller.getRepeatMode();
+        int next=mode==Player.REPEAT_MODE_OFF?Player.REPEAT_MODE_ONE:(mode==Player.REPEAT_MODE_ONE?Player.REPEAT_MODE_ALL:Player.REPEAT_MODE_OFF);
+        controller.setRepeatMode(next);
+        Store.setRepeatMode(this,next);
+        updateRepeatUi();
+        flash(next==Player.REPEAT_MODE_ONE?"Repeat one":(next==Player.REPEAT_MODE_ALL?"Repeat playlist / queue":"Repeat off"));
+    }
+
+    private void updateRepeatUi(){
+        if(repeat==null)return;
+        int mode=controller==null?Store.repeatMode(this):controller.getRepeatMode();
+        repeat.setText(mode==Player.REPEAT_MODE_ONE?"↻ 1":(mode==Player.REPEAT_MODE_ALL?"↻ All":"↻"));
+        repeat.setTextColor(mode==Player.REPEAT_MODE_OFF?Ui.MUTED:Ui.ACCENT);
+    }
 
     private String speedText(float s){return Math.abs(s-Math.round(s))<.001?String.format("%.1f",s):String.format("%.2f",s).replaceAll("0$","");}
     private void speedSheet(){
