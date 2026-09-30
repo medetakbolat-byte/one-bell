@@ -8,6 +8,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
+import java.util.Calendar;
+
 public final class AlarmScheduler {
     public static final String EXTRA_ID="alarm_id";
     private AlarmScheduler(){}
@@ -39,9 +41,43 @@ public final class AlarmScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     }
 
-    public static boolean schedule(Context c,AlarmItem a){
+    public static long nextDaily(long source,long now){
+        Calendar src=Calendar.getInstance();
+        src.setTimeInMillis(source);
+
+        Calendar next=Calendar.getInstance();
+        next.setTimeInMillis(now);
+        next.set(Calendar.HOUR_OF_DAY,src.get(Calendar.HOUR_OF_DAY));
+        next.set(Calendar.MINUTE,src.get(Calendar.MINUTE));
+        next.set(Calendar.SECOND,0);
+        next.set(Calendar.MILLISECOND,0);
+        if(next.getTimeInMillis()<=now) next.add(Calendar.DAY_OF_YEAR,1);
+        return next.getTimeInMillis();
+    }
+
+    public static boolean schedule(Context c,AlarmItem original){
+        if(original==null) return false;
+        if(!original.enabled){
+            cancel(c,original.id);
+            return true;
+        }
+
         AlarmManager am=(AlarmManager)c.getSystemService(Context.ALARM_SERVICE);
         if(am==null || !canExact(c)) return false;
+
+        AlarmItem a=original;
+        long now=System.currentTimeMillis();
+
+        if(a.isAlways()){
+            long next=nextDaily(a.time,now);
+            if(next!=a.time){
+                a=new AlarmItem(a.id,next,a.mode,true);
+                AlarmStore.upsert(c,a);
+            }
+        }else if(a.time<=now){
+            return false;
+        }
+
         am.setAlarmClock(new AlarmManager.AlarmClockInfo(a.time,show(c,a.id)),fire(c,a.id));
         return true;
     }

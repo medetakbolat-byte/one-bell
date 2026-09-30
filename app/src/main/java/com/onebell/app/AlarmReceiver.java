@@ -9,13 +9,26 @@ import android.os.PowerManager;
 public final class AlarmReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context c,Intent i){
         int id=i.getIntExtra(AlarmScheduler.EXTRA_ID,-1);
-        if(id>=0) AlarmStore.remove(c,id);
+
+        if(id>=0){
+            AlarmItem item=AlarmStore.get(c,id);
+            if(item!=null){
+                if(item.isAlways() && item.enabled){
+                    long next=AlarmScheduler.nextDaily(item.time,System.currentTimeMillis()+1000L);
+                    AlarmItem tomorrow=new AlarmItem(item.id,next,AlarmItem.MODE_ALWAYS,true);
+                    AlarmStore.upsert(c,tomorrow);
+                    AlarmScheduler.schedule(c,tomorrow);
+                }else{
+                    AlarmStore.upsert(c,new AlarmItem(item.id,item.time,item.mode,false));
+                }
+            }
+        }
 
         PendingResult pending=goAsync();
         PowerManager pm=(PowerManager)c.getSystemService(Context.POWER_SERVICE);
         PowerManager.WakeLock wl=pm==null?null:
             pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"OneBell:Ring");
-        if(wl!=null) wl.acquire(10000L);
+        if(wl!=null) wl.acquire(20000L);
 
         BellPlayer.playOnce(c,()->{
             if(wl!=null && wl.isHeld()) wl.release();
