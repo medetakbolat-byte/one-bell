@@ -3,11 +3,19 @@
     <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#090D12</item>
-        <item name="android:navigationBarColor">#090D12</item>
-        <item name="android:windowBackground">#090D12</item>
-        <item name="colorPrimary">#48B7F2</item>
-        <item name="colorAccent">#48B7F2</item>
+        <item name="android:statusBarColor">#05080C</item>
+        <item name="android:navigationBarColor">#05080C</item>
+        <item name="android:windowBackground">#05080C</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="colorPrimary">#69BEEF</item>
+        <item name="colorAccent">#69BEEF</item>
+        <item name="bottomSheetDialogTheme">@style/TwinBottomSheet</item>
+    </style>
+    <style name="TwinBottomSheet" parent="Theme.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/TwinBottomSheetStyle</item>
+    </style>
+    <style name="TwinBottomSheetStyle" parent="Widget.MaterialComponents.BottomSheet.Modal">
+        <item name="android:background">#0E1218</item>
     </style>
 </resources>

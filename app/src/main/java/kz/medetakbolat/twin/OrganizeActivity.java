@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 
 public class OrganizeActivity extends AppCompatActivity {
-    private static final int PICK_COVER=501,PICK_MEDIA=502;
+    private static final int PICK_COVER=501,PICK_MEDIA=502,PICK_LIBRARY=503;
     private String mode,collectionId,playlistId,queueId,pendingCoverTarget="";
     private LinearLayout root;
     private RecyclerView recycler;
@@ -120,12 +120,10 @@ public class OrganizeActivity extends AppCompatActivity {
         Store.addRecent(this,i.uri);startActivity(new Intent(this,PlayerActivity.class));
     }
 
-    private void newPlaylist(){EditText e=new EditText(this);e.setHint("Playlist name");new AlertDialog.Builder(this).setTitle("New playlist").setView(e).setPositiveButton("Create",(d,w)->{String n=e.getText().toString().trim();if(n.isEmpty())return;ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId)){Store.Playlist p=new Store.Playlist();p.name=n;c.playlists.add(p);}Store.saveCollections(this,cs);render();}).setNegativeButton("Cancel",null).show();}
+    private void newPlaylist(){Sheets.prompt(this,"New playlist","Playlist name","","Create",n->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId)){Store.Playlist p=new Store.Playlist();p.name=n;c.playlists.add(p);}Store.saveCollections(this,cs);render();});}
 
     private void addMedia(){
-        final ArrayList<MediaEntry>choices=new ArrayList<>(library);String[]names=new String[choices.size()];boolean[]checked=new boolean[choices.size()];for(int i=0;i<choices.size();i++)names[i]=choices.get(i).title+"   "+choices.get(i).durationText();
-        AlertDialog dlg=new AlertDialog.Builder(this).setTitle("Add media").setMultiChoiceItems(names,checked,(d,w,is)->checked[w]=is).setPositiveButton("Add",null).setNeutralButton("Open file…",null).setNegativeButton("Cancel",null).create();
-        dlg.setOnShowListener(x->{dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{ArrayList<String>u=new ArrayList<>();for(int i=0;i<checked.length;i++)if(checked[i])u.add(choices.get(i).uri);addUris(u);dlg.dismiss();});dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->{dlg.dismiss();openFiles();});});dlg.show();
+        Sheets.choices(this,"Add media",new String[]{"Choose from Library","Open file…"},w->{if(w==0)startActivityForResult(new Intent(this,MediaPickerActivity.class),PICK_LIBRARY);else openFiles();});
     }
 
     private void openFiles(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"audio/*","video/*"});i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);startActivityForResult(i,PICK_MEDIA);}
@@ -133,40 +131,34 @@ public class OrganizeActivity extends AppCompatActivity {
 
     private void showMore(){
         if("collection".equals(mode))sheet(new String[]{"Rename","Set cover","New playlist","Delete collection"},w->{if(w==0)rename();else if(w==1)pickCover("collection");else if(w==2)newPlaylist();else deleteCollection();});
-        else if("playlist".equals(mode))sheet(new String[]{"Rename","Set cover","Add section","Add media","Delete playlist"},w->{if(w==0)rename();else if(w==1)pickCover("playlist");else if(w==2)addSection();else if(w==3)addMedia();else deletePlaylist();});
+        else if("playlist".equals(mode))sheet(new String[]{"Rename","Set cover","Add section","Manage sections","Add media","Delete playlist"},w->{if(w==0)rename();else if(w==1)pickCover("playlist");else if(w==2)addSection();else if(w==3)manageSections();else if(w==4)addMedia();else deletePlaylist();});
         else{ArrayList<String>o=new ArrayList<>();if(!"current".equals(queueId))o.add("Rename");o.add("Clear queue");o.add("Add media");if(!"current".equals(queueId))o.add("Delete queue");sheet(o.toArray(new String[0]),w->{String x=o.get(w);if("Rename".equals(x))rename();else if("Clear queue".equals(x)){Store.replaceQueue(this,queueId,new ArrayList<>());if(queueId.equals(Store.currentQueueId(this)))Playback.syncActiveQueue(this);render();}else if("Add media".equals(x))addMedia();else deleteQueue();});}
     }
 
     private interface Choice{void pick(int i);}
-    private void sheet(String[]opts,Choice c){BottomSheetDialog d=new BottomSheetDialog(this);LinearLayout b=new LinearLayout(this);b.setOrientation(LinearLayout.VERTICAL);b.setPadding(Ui.dp(this,20),Ui.dp(this,12),Ui.dp(this,20),Ui.dp(this,22));b.setBackgroundColor(Ui.SURFACE);for(int i=0;i<opts.length;i++){final int x=i;TextView t=Ui.text(this,opts[i],16,Ui.TEXT,false);t.setPadding(0,Ui.dp(this,14),0,Ui.dp(this,14));t.setOnClickListener(v->{d.dismiss();c.pick(x);});b.addView(t);}d.setContentView(b);d.show();}
+    private void sheet(String[]opts,Choice c){Sheets.choices(this,currentTitle(),opts,c::pick);}
 
-    private void rename(){EditText e=new EditText(this);e.setText(currentTitle());new AlertDialog.Builder(this).setTitle("Rename").setView(e).setPositiveButton("Save",(d,w)->{String n=e.getText().toString().trim();if(n.isEmpty())return;if("collection".equals(mode)){ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef x:cs)if(x.id.equals(collectionId))x.name=n;Store.saveCollections(this,cs);}else if("playlist".equals(mode)){ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef x:cs)if(x.id.equals(collectionId))for(Store.Playlist p:x.playlists)if(p.id.equals(playlistId))p.name=n;Store.saveCollections(this,cs);}else{ArrayList<Store.QueueDef>qs=Store.getQueues(this);for(Store.QueueDef q:qs)if(q.id.equals(queueId))q.name=n;Store.saveQueues(this,qs);}render();}).show();}
-    private void deleteCollection(){new AlertDialog.Builder(this).setTitle("Delete collection?").setMessage("Media files stay on your phone.").setPositiveButton("Delete",(d,w)->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);cs.removeIf(c->c.id.equals(collectionId));Store.saveCollections(this,cs);finish();}).setNegativeButton("Cancel",null).show();}
-    private void deletePlaylist(){new AlertDialog.Builder(this).setTitle("Delete playlist?").setMessage("Media files stay on your phone.").setPositiveButton("Delete",(d,w)->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))c.playlists.removeIf(p->p.id.equals(playlistId));Store.saveCollections(this,cs);finish();}).setNegativeButton("Cancel",null).show();}
-    private void deleteQueue(){ArrayList<Store.QueueDef>qs=Store.getQueues(this);qs.removeIf(q->q.id.equals(queueId));Store.saveQueues(this,qs);if(queueId.equals(Store.currentQueueId(this))){Store.setCurrentQueue(this,"current");Playback.syncActiveQueue(this);}finish();}
+    private void rename(){Sheets.prompt(this,"Rename","Name",currentTitle(),"Save",n->{if("collection".equals(mode)){ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef x:cs)if(x.id.equals(collectionId))x.name=n;Store.saveCollections(this,cs);}else if("playlist".equals(mode)){ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef x:cs)if(x.id.equals(collectionId))for(Store.Playlist p:x.playlists)if(p.id.equals(playlistId))p.name=n;Store.saveCollections(this,cs);}else{ArrayList<Store.QueueDef>qs=Store.getQueues(this);for(Store.QueueDef q:qs)if(q.id.equals(queueId))q.name=n;Store.saveQueues(this,qs);}render();});}
+    private void deleteCollection(){Sheets.confirm(this,"Delete collection?","Media files stay on your phone.","Delete",()->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);cs.removeIf(c->c.id.equals(collectionId));Store.saveCollections(this,cs);finish();});}
+    private void deletePlaylist(){Sheets.confirm(this,"Delete playlist?","Media files stay on your phone.","Delete",()->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))c.playlists.removeIf(p->p.id.equals(playlistId));Store.saveCollections(this,cs);finish();});}
+    private void deleteQueue(){Sheets.confirm(this,"Delete queue?","Media files stay on your phone.","Delete",()->{ArrayList<Store.QueueDef>qs=Store.getQueues(this);qs.removeIf(q->q.id.equals(queueId));Store.saveQueues(this,qs);if(queueId.equals(Store.currentQueueId(this))){Store.setCurrentQueue(this,"current");Playback.syncActiveQueue(this);}finish();});}
 
-    private void addSection(){EditText e=new EditText(this);e.setHint("Section name");new AlertDialog.Builder(this).setTitle("Add section").setView(e).setPositiveButton("Add",(d,w)->{String n=e.getText().toString().trim();if(n.isEmpty())return;ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist p:c.playlists)if(p.id.equals(playlistId)&&!p.sections.contains(n))p.sections.add(n);Store.saveCollections(this,cs);render();}).show();}
+    private void addSection(){Sheets.prompt(this,"Add section","Section name","","Add",n->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist p:c.playlists)if(p.id.equals(playlistId)&&!p.sections.contains(n))p.sections.add(n);Store.saveCollections(this,cs);render();});}
     private void pickCover(String target){pendingCoverTarget=target;Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("image/*");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);startActivityForResult(i,PICK_COVER);}
     private void persist(Uri u){try{getContentResolver().takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}}
 
-    @Override protected void onActivityResult(int r,int res,Intent data){super.onActivityResult(r,res,data);if(res!=RESULT_OK||data==null)return;if(r==PICK_COVER&&data.getData()!=null){Uri u=data.getData();persist(u);if("collection".equals(pendingCoverTarget)){ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))c.cover=u.toString();Store.saveCollections(this,cs);}else{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist p:c.playlists)if(p.id.equals(playlistId))p.cover=u.toString();Store.saveCollections(this,cs);}render();}else if(r==PICK_MEDIA){ArrayList<String>u=new ArrayList<>();if(data.getData()!=null){persist(data.getData());u.add(data.getData().toString());}ClipData clips=data.getClipData();if(clips!=null)for(int i=0;i<clips.getItemCount();i++){Uri x=clips.getItemAt(i).getUri();persist(x);u.add(x.toString());}addUris(u);}}
+    @Override protected void onActivityResult(int r,int res,Intent data){super.onActivityResult(r,res,data);if(res!=RESULT_OK||data==null)return;if(r==PICK_COVER&&data.getData()!=null){Uri u=data.getData();persist(u);if("collection".equals(pendingCoverTarget)){ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))c.cover=u.toString();Store.saveCollections(this,cs);}else{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist p:c.playlists)if(p.id.equals(playlistId))p.cover=u.toString();Store.saveCollections(this,cs);}render();}else if(r==PICK_MEDIA){ArrayList<String>u=new ArrayList<>();if(data.getData()!=null){persist(data.getData());u.add(data.getData().toString());}ClipData clips=data.getClipData();if(clips!=null)for(int i=0;i<clips.getItemCount();i++){Uri x=clips.getItemAt(i).getUri();persist(x);u.add(x.toString());}addUris(u);}else if(r==PICK_LIBRARY){ArrayList<String>u=data.getStringArrayListExtra("uris");addUris(u==null?new ArrayList<>():u);}}
 
     private void playlistEntryMenu(Store.Playlist p){
-        sheet(new String[]{"Rename","Delete"},w->{
-            if(w==0){
-                EditText e=new EditText(this);e.setText(p.name);
-                new AlertDialog.Builder(this).setTitle("Rename playlist").setView(e).setPositiveButton("Save",(d,x)->{
-                    String n=e.getText().toString().trim();if(n.isEmpty())return;
-                    ArrayList<Store.CollectionDef>cs=Store.getCollections(this);
-                    for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist z:c.playlists)if(z.id.equals(p.id))z.name=n;
-                    Store.saveCollections(this,cs);render();
-                }).show();
-            }else{
-                new AlertDialog.Builder(this).setTitle("Delete playlist?").setMessage("Media files stay on your phone.").setPositiveButton("Delete",(d,x)->{
-                    ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))c.playlists.removeIf(z->z.id.equals(p.id));Store.saveCollections(this,cs);render();
-                }).setNegativeButton("Cancel",null).show();
-            }
+        Sheets.choices(this,p.name,new String[]{"Rename","Delete"},w->{
+            if(w==0)Sheets.prompt(this,"Rename playlist","Playlist name",p.name,"Save",n->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist z:c.playlists)if(z.id.equals(p.id))z.name=n;Store.saveCollections(this,cs);render();});
+            else Sheets.confirm(this,"Delete playlist?","Media files stay on your phone.","Delete",()->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))c.playlists.removeIf(z->z.id.equals(p.id));Store.saveCollections(this,cs);render();});
         });
+    }
+
+    private void manageSections(){
+        Store.Playlist p=findPlaylist();if(p==null||p.sections.isEmpty()){Toast.makeText(this,"No sections yet",Toast.LENGTH_SHORT).show();return;}
+        Sheets.choices(this,"Sections",p.sections.toArray(new String[0]),i->{String old=p.sections.get(i);Sheets.choices(this,old,new String[]{"Rename","Remove section"},w->{if(w==0)Sheets.prompt(this,"Rename section","Section name",old,"Save",n->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist pl:c.playlists)if(pl.id.equals(playlistId)){int ix=pl.sections.indexOf(old);if(ix>=0)pl.sections.set(ix,n);for(Store.Item it:pl.items)if(old.equals(it.section))it.section=n;}Store.saveCollections(this,cs);render();});else Sheets.confirm(this,"Remove section?","Media stays in the playlist and moves to the unsectioned area.","Remove",()->{ArrayList<Store.CollectionDef>cs=Store.getCollections(this);for(Store.CollectionDef c:cs)if(c.id.equals(collectionId))for(Store.Playlist pl:c.playlists)if(pl.id.equals(playlistId)){pl.sections.remove(old);for(Store.Item it:pl.items)if(old.equals(it.section))it.section="";}Store.saveCollections(this,cs);render();});});});
     }
 
     private void itemMenu(Store.Item it,boolean queue){ArrayList<String>o=new ArrayList<>();o.add("Play");o.add("Play next");if(!queue)o.add("Move to section");o.add("Remove");sheet(o.toArray(new String[0]),w->{String x=o.get(w);if("Play".equals(x))playItem(it,queue);else if("Play next".equals(x)){Playback.addNext(this,it.uri);Toast.makeText(this,"Playing next",Toast.LENGTH_SHORT).show();}else if("Move to section".equals(x))chooseSection(it);else removeItem(it,queue);});}
