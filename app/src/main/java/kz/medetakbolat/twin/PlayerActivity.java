@@ -145,7 +145,7 @@ public class PlayerActivity extends AppCompatActivity {
                         if(sleepAtEnd&&reason==Player.MEDIA_ITEM_TRANSITION_REASON_AUTO){controller.pause();sleepAtEnd=false;}
                         updateCurrent();
                     }
-                    @Override public void onIsPlayingChanged(boolean playing){play.setText(playing?"Ⅱ":"▶");if(playing)scheduleHide();else showControls();}
+                    @Override public void onIsPlayingChanged(boolean playing){play.setText(playing?"Ⅱ":"▶");configurePip();if(playing)scheduleHide();else showControls();}
                 });
                 prepareIfNeeded();handler.post(ticker);
             }catch(Exception e){Toast.makeText(this,"Player could not start",Toast.LENGTH_LONG).show();}
@@ -174,7 +174,7 @@ public class PlayerActivity extends AppCompatActivity {
         if(!video)Thumb.load(this,artwork,e);
         float sp=Store.speed(this,currentUri);controller.setPlaybackSpeed(sp);speed.setText(speedText(sp)+"×");
         resetTransform();mediaLayer.setTranslationX(0);mediaLayer.setAlpha(1f);
-        if(video)scheduleHide();else showControls();
+        if(video){configurePip();scheduleHide();}else showControls();
     }
 
     private void setupGestures(){
@@ -308,18 +308,39 @@ public class PlayerActivity extends AppCompatActivity {
         MediaEntry e=MediaRepository.resolve(this,currentUri);if(e!=null)Sheets.info(this,e.title,(e.isVideo()?"Video":"Audio")+"\n"+e.durationText()+"\n"+e.folder+"\n\n"+e.uri);
     }
 
-    private void enterPip(){
-        if(Build.VERSION.SDK_INT<26||!isVideo()||controller==null)return;
+    private PictureInPictureParams pipParams(boolean auto){
+        Rect r=new Rect();playerView.getGlobalVisibleRect(r);
+        int w=16,h=9;
         try{
-            Rect r=new Rect();playerView.getGlobalVisibleRect(r);
-            PictureInPictureParams.Builder b=new PictureInPictureParams.Builder().setAspectRatio(new Rational(16,9)).setSourceRectHint(r);
-            inPip=true;enterPictureInPictureMode(b.build());
+            androidx.media3.common.VideoSize vs=controller==null?androidx.media3.common.VideoSize.UNKNOWN:controller.getVideoSize();
+            if(vs!=null&&vs.width>0&&vs.height>0){w=vs.width;h=vs.height;}
+        }catch(Exception ignored){}
+        float ratio=w/(float)Math.max(1,h);
+        if(ratio<0.42f){w=9;h=16;}else if(ratio>2.39f){w=21;h=9;}
+        PictureInPictureParams.Builder b=new PictureInPictureParams.Builder().setAspectRatio(new Rational(w,h)).setSourceRectHint(r);
+        if(Build.VERSION.SDK_INT>=31)b.setAutoEnterEnabled(auto);
+        return b.build();
+    }
+
+    private void configurePip(){
+        if(Build.VERSION.SDK_INT<26||!isVideo())return;
+        try{setPictureInPictureParams(pipParams(Build.VERSION.SDK_INT>=31&&controller!=null&&controller.isPlaying()));}catch(Exception ignored){}
+    }
+
+    private void enterPip(){
+        if(Build.VERSION.SDK_INT<26||!isVideo()||controller==null||!controller.isPlaying()||isInPictureInPictureMode())return;
+        try{
+            configurePip();
+            if(Build.VERSION.SDK_INT<31){inPip=enterPictureInPictureMode(pipParams(false));}
         }catch(Exception ignored){}
     }
 
     @Override public void onUserLeaveHint(){
         super.onUserLeaveHint();
-        if(Build.VERSION.SDK_INT>=26&&isVideo()&&controller!=null&&controller.isPlaying()&&!isFinishing())enterPip();
+        if(Build.VERSION.SDK_INT>=26&&isVideo()&&controller!=null&&controller.isPlaying()&&!isFinishing()){
+            if(Build.VERSION.SDK_INT<31)enterPip();
+            else configurePip();
+        }
     }
 
     @Override public void onPictureInPictureModeChanged(boolean in,Configuration cfg){

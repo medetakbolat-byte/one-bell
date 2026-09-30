@@ -109,6 +109,8 @@ public class MainActivity extends AppCompatActivity {
     private void selectNav(int n){navHome.setTextColor(n==0?Ui.TEXT:Ui.MUTED);navLibrary.setTextColor(n==1?Ui.TEXT:Ui.MUTED);navQueues.setTextColor(n==2?Ui.TEXT:Ui.MUTED);}
 
     private void connectMini(){
+        if(controller!=null)return;
+        showMiniFromStore();
         SessionToken token=new SessionToken(this,new ComponentName(this,PlayerService.class));
         controllerFuture=new MediaController.Builder(this,token).buildAsync();
         controllerFuture.addListener(()->{
@@ -118,16 +120,33 @@ public class MainActivity extends AppCompatActivity {
                     @Override public void onMediaItemTransition(MediaItem item,int reason){updateMini();}
                     @Override public void onIsPlayingChanged(boolean b){updateMini();}
                     @Override public void onMediaMetadataChanged(androidx.media3.common.MediaMetadata m){updateMini();}
+                    @Override public void onPlaybackStateChanged(int state){updateMini();}
                 });
-                updateMini();handler.post(miniTicker);
-            }catch(Exception ignored){}
+                updateMini();
+                handler.removeCallbacks(miniTicker);
+                handler.post(miniTicker);
+            }catch(Exception ignored){showMiniFromStore();}
         },ContextCompat.getMainExecutor(this));
     }
 
-    private void updateMini(){
-        if(controller==null||controller.getCurrentMediaItem()==null){miniWrap.setVisibility(View.GONE);return;}
-        String uri=controller.getCurrentMediaItem().mediaId;MediaEntry e=MediaRepository.resolve(this,uri);
+    private void showMiniFromStore(){
+        String uri=Store.nowPlaying(this);
+        if(uri==null||uri.isEmpty()){miniWrap.setVisibility(View.GONE);return;}
+        MediaEntry e=MediaRepository.resolve(this,uri);
         if(e==null){miniWrap.setVisibility(View.GONE);return;}
+        miniWrap.setVisibility(View.VISIBLE);
+        miniTitle.setText(e.title);
+        miniPlay.setText("▶");
+        long[] p=Store.progress(this,uri);
+        if(p[1]>0)miniProgress.setProgress((int)Math.min(1000,p[0]*1000/p[1]));
+        Thumb.load(this,miniThumb,e);
+    }
+
+    private void updateMini(){
+        if(controller==null||controller.getCurrentMediaItem()==null){showMiniFromStore();return;}
+        String uri=controller.getCurrentMediaItem().mediaId;MediaEntry e=MediaRepository.resolve(this,uri);
+        if(e==null){showMiniFromStore();return;}
+        Store.setNowPlaying(this,uri);
         miniWrap.setVisibility(View.VISIBLE);miniTitle.setText(e.title);miniPlay.setText(controller.isPlaying()?"Ⅱ":"▶");Thumb.load(this,miniThumb,e);
     }
 
@@ -289,8 +308,18 @@ public class MainActivity extends AppCompatActivity {
         else if(r==REQ_COVER&&!pendingCoverUri.isEmpty()){Store.setMediaCover(this,pendingCoverUri,u.toString());Playback.syncActiveQueue(this);refresh(this::renderLibrary);}
     }
 
-    @Override protected void onResume(){super.onResume();if(content!=null&&!needsPermission())refresh(null);updateMini();}
-    @Override protected void onDestroy(){handler.removeCallbacks(miniTicker);if(controllerFuture!=null)MediaController.releaseFuture(controllerFuture);super.onDestroy();}
+    @Override protected void onResume(){
+        super.onResume();
+        if(content!=null&&!needsPermission())refresh(null);
+        showMiniFromStore();
+        if(controller==null)connectMini();else updateMini();
+    }
+    @Override protected void onDestroy(){
+        handler.removeCallbacks(miniTicker);
+        if(controllerFuture!=null)MediaController.releaseFuture(controllerFuture);
+        controllerFuture=null;controller=null;
+        super.onDestroy();
+    }
 
     class MediaVH extends RecyclerView.ViewHolder{
         ImageView art;TextView title,sub,more;LinearLayout root;
