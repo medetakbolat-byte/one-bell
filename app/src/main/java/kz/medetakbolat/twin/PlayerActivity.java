@@ -138,10 +138,10 @@ public class PlayerActivity extends AppCompatActivity {
     private void setControls(boolean visible){
         controlsVisible=visible;topBar.animate().alpha(visible?1f:0f).setDuration(160).withStartAction(()->{if(visible){topBar.setVisibility(View.VISIBLE);centerBar.setVisibility(View.VISIBLE);bottomPanel.setVisibility(View.VISIBLE);}}).withEndAction(()->{if(!visible){topBar.setVisibility(View.INVISIBLE);centerBar.setVisibility(View.INVISIBLE);bottomPanel.setVisibility(View.INVISIBLE);}}).start();
         centerBar.animate().alpha(visible?1f:0f).setDuration(160).start();bottomPanel.animate().alpha(visible?1f:0f).setDuration(160).start();
-        if(isVideo())setImmersive(!visible);
+        if(isVideo())setSystemChrome(!visible);
     }
     private void scheduleHide(){h.removeCallbacks(hideControls);if(controller!=null&&controller.isPlaying()&&isVideo())h.postDelayed(hideControls,2400);}
-    private void setImmersive(boolean hide){if(hide)getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);}
+    private void setSystemChrome(boolean hide){if(hide)getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);}
 
     private void setupGestures(){
         scaler=new ScaleGestureDetector(this,new ScaleGestureDetector.SimpleOnScaleGestureListener(){@Override public boolean onScale(ScaleGestureDetector d){if(!isVideo())return false;videoScale=Math.max(1f,Math.min(3f,videoScale*d.getScaleFactor()));applyTransform();flash(Math.round(videoScale*100)+"%");return true;}});
