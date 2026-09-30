@@ -1,2 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources><string name="app_name">Twin</string></resources>
+<resources>
+    <string name="app_name">Twin</string>
+    <string name="playback_channel">Twin playback</string>
+</resources>
