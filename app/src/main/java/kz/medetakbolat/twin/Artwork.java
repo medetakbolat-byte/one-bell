@@ -15,12 +15,13 @@ public final class Artwork {
     private Artwork(){}
 
     public static byte[] bytes(Context c,MediaEntry e){
-        if(e==null)return null;
-        Bitmap b=null;
+        if(e==null)return null;Bitmap b=null;
         try{
             String custom=Store.mediaCover(c,e.uri);
-            if(custom!=null&&!custom.isEmpty()){
-                try(InputStream in=c.getContentResolver().openInputStream(Uri.parse(custom))){if(in!=null)b=BitmapFactory.decodeStream(in);}
+            String fallback=!e.isVideo()?Store.playbackFallbackCover(c):"";
+            String explicit=(custom!=null&&!custom.isEmpty())?custom:(fallback==null?"":fallback);
+            if(!explicit.isEmpty()){
+                try(InputStream in=c.getContentResolver().openInputStream(Uri.parse(explicit))){if(in!=null)b=BitmapFactory.decodeStream(in);}
             }
             if(b==null&&e.isVideo()&&Build.VERSION.SDK_INT>=29){
                 try{b=c.getContentResolver().loadThumbnail(Uri.parse(e.uri),new Size(320,220),null);}catch(Exception ignored){}
@@ -32,14 +33,8 @@ public final class Artwork {
                 r.release();
             }
             if(b==null)return null;
-            int max=320;
-            if(b.getWidth()>max||b.getHeight()>max){
-                float scale=Math.min(max/(float)b.getWidth(),max/(float)b.getHeight());
-                b=Bitmap.createScaledBitmap(b,Math.max(1,Math.round(b.getWidth()*scale)),Math.max(1,Math.round(b.getHeight()*scale)),true);
-            }
-            ByteArrayOutputStream out=new ByteArrayOutputStream();
-            b.compress(Bitmap.CompressFormat.JPEG,82,out);
-            return out.toByteArray();
+            int max=320;if(b.getWidth()>max||b.getHeight()>max){float scale=Math.min(max/(float)b.getWidth(),max/(float)b.getHeight());b=Bitmap.createScaledBitmap(b,Math.max(1,Math.round(b.getWidth()*scale)),Math.max(1,Math.round(b.getHeight()*scale)),true);}
+            ByteArrayOutputStream out=new ByteArrayOutputStream();b.compress(Bitmap.CompressFormat.JPEG,84,out);return out.toByteArray();
         }catch(Exception ignored){return null;}
     }
 }
